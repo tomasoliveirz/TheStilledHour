@@ -1,0 +1,4 @@
+panda3d==1.10.13
+panda3d-bullet==1.10.13
+pytest==7.3.1
+PyYAML==6.0

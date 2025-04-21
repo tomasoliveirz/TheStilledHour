@@ -1,0 +1,1 @@
+# Este arquivo está vazio e serve apenas para que o diretório factory seja reconhecido como um pacote Python.

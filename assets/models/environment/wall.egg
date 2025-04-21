@@ -1,0 +1,39 @@
+<CoordinateSystem> { Z-up }
+
+<VertexPool> wall {
+  <Vertex> 1 { -0.5 -0.1 0 }
+  <Vertex> 2 { 0.5 -0.1 0 }
+  <Vertex> 3 { 0.5 0.1 0 }
+  <Vertex> 4 { -0.5 0.1 0 }
+  <Vertex> 5 { -0.5 -0.1 1 }
+  <Vertex> 6 { 0.5 -0.1 1 }
+  <Vertex> 7 { 0.5 0.1 1 }
+  <Vertex> 8 { -0.5 0.1 1 }
+}
+
+<Group> wall {
+  <Polygon> {
+    <VertexRef> { 1 2 3 4 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+  <Polygon> {
+    <VertexRef> { 5 6 7 8 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+  <Polygon> {
+    <VertexRef> { 1 5 8 4 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+  <Polygon> {
+    <VertexRef> { 2 6 7 3 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+  <Polygon> {
+    <VertexRef> { 1 2 6 5 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+  <Polygon> {
+    <VertexRef> { 4 3 7 8 <Ref> { wall } }
+    <Surface> { 0.7 0.7 0.7 1.0 }
+  }
+}
