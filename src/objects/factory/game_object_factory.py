@@ -32,10 +32,15 @@ class GameObjectFactory:
     def _init_resources(self) -> None:
         """Inicializa os recursos compartilhados (texturas, etc)."""
         # Carrega texturas comuns
-        self._load_texture("wall", os.path.join(TEXTURES_DIR, "wall.jpg"))
-        self._load_texture("floor", os.path.join(TEXTURES_DIR, "floor.jpg"))
-        self._load_texture("ceiling", os.path.join(TEXTURES_DIR, "ceiling.jpg"))
-        self._load_texture("box", os.path.join(TEXTURES_DIR, "box.jpg"))
+        print("Inicializando recursos e carregando texturas...")
+        
+        # Carrega textura de parede (tenta múltiplas extensões)
+        self._load_texture_with_fallbacks("wall", ["wall.jpg", "wall.jpeg", "wall.png"])
+        
+        # Carrega outras texturas
+        self._load_texture_with_fallbacks("floor", ["floor.jpg"])
+        self._load_texture_with_fallbacks("ceiling", ["ceiling.jpg"])
+        self._load_texture_with_fallbacks("box", ["box.jpg"])
         
         # Cria protótipos para objetos comuns
         self._register_wall_prototype()
@@ -43,59 +48,218 @@ class GameObjectFactory:
         self._register_ceiling_prototype()
         self._register_box_prototype()
         self._register_movable_box_prototype()
+        
+        print(f"GameObjectFactory inicializado com {len(self._textures)} texturas carregadas")
     
-    """
-    Substituição completa do método _load_texture no GameObjectFactory 
-    para ignorar completamente o sistema de mipmaps que está causando o erro
-    """
-
+    def _load_texture_with_fallbacks(self, name: str, filenames: list) -> None:
+        """
+        Tenta carregar uma textura com vários possíveis nomes de arquivo.
+        
+        Args:
+            name: Nome de referência para a textura
+            filenames: Lista de possíveis nomes de arquivo para tentar
+        """
+        # Armazena todos os possíveis caminhos para tentar
+        paths_to_try = []
+        
+        # 1. Caminhos na pasta principal de texturas
+        for filename in filenames:
+            paths_to_try.append(os.path.join(TEXTURES_DIR, filename))
+        
+        # 2. Caminhos na pasta environment dentro de texturas
+        for filename in filenames:
+            paths_to_try.append(os.path.join(TEXTURES_DIR, "environment", filename))
+            
+        # 3. Caminhos na pasta de modelos (algumas texturas podem estar lá)
+        for filename in filenames:
+            paths_to_try.append(os.path.join(MODELS_DIR, "environment", filename))
+        
+        # Tenta cada caminho até encontrar um válido
+        for path in paths_to_try:
+            if os.path.exists(path):
+                print(f"Encontrada textura '{name}' em: {path}")
+                self._load_texture(name, path)
+                if name in self._textures:
+                    return  # Sucesso!
+        
+        # Se chegamos aqui, nenhum arquivo foi encontrado
+        print(f"AVISO: Nenhum arquivo de textura encontrado para '{name}'")
+        print(f"Caminhos verificados: {paths_to_try}")
+        
+        # Cria uma textura procedural como fallback
+        self._create_procedural_texture(name)
+    
     def _load_texture(self, name: str, path: str) -> None:
         """
-        Carrega uma textura de forma super simplificada, evitando mipmaps completamente.
+        Carrega uma textura a partir de um arquivo.
         
         Args:
             name: Nome de referência para a textura
             path: Caminho para o arquivo de textura
         """
         try:
-            # MUDANÇA RADICAL: Em vez de carregar a textura real, criar uma textura em memória
-            # com uma cor simples para evitar completamente o problema de mipmaps
-            from panda3d.core import Texture, PNMImage
+            print(f"Carregando textura '{name}' de: {path}")
             
-            # Criar uma imagem simples de 2x2 pixels
+            # Usa o loader do Panda3D para carregar a textura
+            texture = self._show_base.loader.loadTexture(path)
+            
+            if texture:
+                # Configura as propriedades da textura
+                texture.setMagfilter(Texture.FT_linear)
+                texture.setMinfilter(Texture.FT_linear)
+                texture.setWrapU(Texture.WM_repeat)
+                texture.setWrapV(Texture.WM_repeat)
+                
+                # Armazena a textura carregada
+                self._textures[name] = texture
+                print(f"Textura '{name}' carregada com sucesso!")
+            else:
+                print(f"Falha ao carregar textura '{name}' - o loader retornou None")
+                
+        except Exception as e:
+            print(f"ERRO ao carregar textura '{name}' de {path}: {e}")
+    
+    def _create_procedural_texture(self, name: str) -> None:
+        """
+        Cria uma textura procedural como fallback quando não é possível carregar de arquivo.
+        
+        Args:
+            name: Nome de referência para a textura
+        """
+        from panda3d.core import PNMImage
+        
+        print(f"Criando textura procedural para '{name}'")
+        
+        try:
+            # Cria uma imagem em memória
+            img = PNMImage(64, 64)
+            
+            # Define a cor base baseada no tipo
             if name == "wall":
-                color = (0.7, 0.7, 0.7)  # Cinza claro para parede
+                base_color = (0.7, 0.7, 0.7)  # Cinza claro
+                pattern = "bricks"
             elif name == "floor":
-                color = (0.4, 0.4, 0.4)  # Cinza escuro para chão
+                base_color = (0.5, 0.5, 0.5)  # Cinza médio
+                pattern = "tiles"
             elif name == "ceiling":
-                color = (0.6, 0.6, 0.8)  # Azulado para teto
-            else:  # box ou qualquer outro
-                color = (0.6, 0.3, 0.1)  # Marrom para caixas
+                base_color = (0.6, 0.6, 0.8)  # Azulado claro
+                pattern = "noise"
+            else:  # box ou padrão
+                base_color = (0.6, 0.3, 0.1)  # Marrom
+                pattern = "wood"
             
-            # Cria uma imagem simples
-            img = PNMImage(2, 2)
-            img.fill(color[0], color[1], color[2])
+            # Preenche com a cor base
+            img.fill(base_color[0], base_color[1], base_color[2])
+            
+            # Adiciona um padrão
+            if pattern == "bricks":
+                # Padrão de tijolos para paredes
+                for y in range(0, 64, 8):
+                    offset = 8 if (y // 8) % 2 == 0 else 0
+                    for x in range(0, 64, 16):
+                        # Desenha "tijolos"
+                        for i in range(min(16, 64 - (x + offset))):
+                            for j in range(min(8, 64 - y)):
+                                if i == 0 or i == 15 or j == 0 or j == 7:
+                                    # Linhas escuras entre os tijolos
+                                    img.setXel(x + offset + i, y + j, *[c * 0.7 for c in base_color])
+                                else:
+                                    # Variação dentro do tijolo
+                                    noise = ((i + j) % 2) * 0.05
+                                    img.setXel(x + offset + i, y + j, 
+                                              min(1.0, base_color[0] + noise),
+                                              min(1.0, base_color[1] + noise),
+                                              min(1.0, base_color[2] + noise))
+            
+            elif pattern == "tiles":
+                # Padrão de ladrilhos para chão
+                for y in range(64):
+                    for x in range(64):
+                        tile_x = (x // 16) % 2
+                        tile_y = (y // 16) % 2
+                        
+                        # Alterna cores como um tabuleiro
+                        if (tile_x + tile_y) % 2 == 0:
+                            factor = 0.9  # Mais escuro
+                        else:
+                            factor = 1.1  # Mais claro
+                            
+                        # Adiciona uma borda escura
+                        if x % 16 == 0 or y % 16 == 0:
+                            factor = 0.7
+                            
+                        img.setXel(x, y, 
+                                  min(1.0, base_color[0] * factor),
+                                  min(1.0, base_color[1] * factor),
+                                  min(1.0, base_color[2] * factor))
+            
+            elif pattern == "wood":
+                # Padrão de madeira para caixas
+                for y in range(64):
+                    for x in range(64):
+                        # Granulação vertical da madeira
+                        grain = (x + y//4) % 16
+                        if grain < 3 or grain > 13:
+                            # Linhas mais escuras
+                            factor = 0.8
+                        else:
+                            # Variação sutil
+                            factor = 0.95 + ((x*y) % 10) / 100.0
+                            
+                        img.setXel(x, y, 
+                                  base_color[0] * factor,
+                                  base_color[1] * factor,
+                                  base_color[2] * factor)
+            
+            else:  # noise (teto)
+                # Padrão de ruído para teto
+                for y in range(64):
+                    for x in range(64):
+                        # Ruído simples
+                        noise = ((x*3 + y*5) % 10) / 50.0
+                        
+                        img.setXel(x, y, 
+                                  min(1.0, base_color[0] + noise),
+                                  min(1.0, base_color[1] + noise),
+                                  min(1.0, base_color[2] + noise))
             
             # Cria uma textura a partir da imagem
             texture = Texture(name)
             texture.load(img)
             
-            # Configurações super básicas
-            texture.setMagfilter(Texture.FT_nearest)  # Filtro mais simples possível
-            texture.setMinfilter(Texture.FT_nearest)  # Sem mipmaps
+            # Configura a textura
+            texture.setMagfilter(Texture.FT_linear)
+            texture.setMinfilter(Texture.FT_linear)
             texture.setWrapU(Texture.WM_repeat)
             texture.setWrapV(Texture.WM_repeat)
             
+            # Armazena a textura
             self._textures[name] = texture
-            print(f"Textura simples '{name}' criada com sucesso - cor: {color}")
+            print(f"Textura procedural '{name}' criada com sucesso!")
+            
         except Exception as e:
-            print(f"ERRO ao criar textura '{name}': {e}")
+            print(f"ERRO ao criar textura procedural '{name}': {e}")
             
-            # Fallback absoluto: se falhar, cria uma textura vazia
-            texture = Texture(name)
-            self._textures[name] = texture
-            print(f"Textura vazia '{name}' criada como fallback de emergência")
-            
+            # Último recurso: textura sólida simples
+            try:
+                # Cria uma imagem muito simples 2x2
+                img = PNMImage(2, 2)
+                img.fill(base_color[0], base_color[1], base_color[2])
+                
+                texture = Texture(name)
+                texture.load(img)
+                
+                # Configurações básicas
+                texture.setMagfilter(Texture.FT_nearest)
+                texture.setMinfilter(Texture.FT_nearest)
+                texture.setWrapU(Texture.WM_repeat)
+                texture.setWrapV(Texture.WM_repeat)
+                
+                self._textures[name] = texture
+                print(f"Textura sólida de emergência '{name}' criada como último recurso")
+            except Exception as e2:
+                print(f"ERRO CRÍTICO! Não foi possível criar nenhuma textura para '{name}': {e2}")
+    
     def _register_wall_prototype(self) -> None:
         """Registra o protótipo para paredes."""
         if "wall" in self._textures:
@@ -104,28 +268,37 @@ class GameObjectFactory:
                 model_path=f"{MODELS_DIR}/environment/wall.egg",
                 texture=self._textures["wall"]
             )
+            print("Protótipo de parede registrado")
     
     def _register_floor_prototype(self) -> None:
         """Registra o protótipo para pisos."""
-        if "floor" in self._textures:
-            # Se a textura "floor" não existir, usa a textura "box" como fallback
-            texture = self._textures.get("floor", self._textures.get("box"))
+        texture = self._textures.get("floor")
+        if not texture and "box" in self._textures:
+            texture = self._textures["box"]
+            print("Usando textura de caixa como fallback para piso")
+            
+        if texture:
             self._prototypes["floor"] = StaticGameObject(
                 name="Floor",
                 model_path=f"{MODELS_DIR}/environment/room.egg",
                 texture=texture
             )
+            print("Protótipo de piso registrado")
     
     def _register_ceiling_prototype(self) -> None:
         """Registra o protótipo para tetos."""
-        if "ceiling" in self._textures:
-            # Se a textura "ceiling" não existir, usa a textura "box" como fallback
-            texture = self._textures.get("ceiling", self._textures.get("box"))
+        texture = self._textures.get("ceiling")
+        if not texture and "box" in self._textures:
+            texture = self._textures["box"]
+            print("Usando textura de caixa como fallback para teto")
+            
+        if texture:
             self._prototypes["ceiling"] = StaticGameObject(
                 name="Ceiling",
                 model_path=f"{MODELS_DIR}/environment/room.egg",
                 texture=texture
             )
+            print("Protótipo de teto registrado")
     
     def _register_box_prototype(self) -> None:
         """Registra o protótipo para caixas estáticas."""
@@ -135,6 +308,7 @@ class GameObjectFactory:
                 model_path=f"{MODELS_DIR}/environment/box.egg",
                 texture=self._textures["box"]
             )
+            print("Protótipo de caixa registrado")
     
     def _register_movable_box_prototype(self) -> None:
         """Registra o protótipo para caixas movíveis (com física)."""
@@ -147,9 +321,8 @@ class GameObjectFactory:
                 friction=0.5,
                 restitution=0.2  # Pequeno bounce quando cai
             )
+            print("Protótipo de caixa móvel registrado")
     
-
-
     def create_ceiling(self, parent: NodePath, position: Tuple[float, float, float], 
                       scale: Tuple[float, float, float]) -> Entity:
         """
@@ -163,26 +336,40 @@ class GameObjectFactory:
         Returns:
             A entidade do teto
         """
+        if "ceiling" not in self._prototypes:
+            print("ERRO: Protótipo de teto não registrado!")
+            return None
+            
         entity = self._prototypes["ceiling"].create(
             parent, Vec3(*position), Vec3(*scale))
         
-        # CORREÇÃO: Configurações extras para garantir que o teto seja opaco e sólido
-        if entity.node_path:
+        # Configurações extras para garantir que o teto seja visível
+        if entity and entity.node_path:
             np = entity.node_path
-            np.setTransparency(TransparencyAttrib.M_none)  # Desativa transparência
-            np.setColor(1, 1, 1, 1)  # Cor branca opaca
-            np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))  # Desativa culling
             
-            # Aplicação adicional da textura para garantir
+            # Limpa configurações que possam interferir
+            np.clearColor()
+            np.clearColorScale()
+            np.setTwoSided(True)  # Mostra ambos os lados
+            
+            # Aplicação explícita da textura para garantir visibilidade
             if "ceiling" in self._textures:
                 texture = self._textures["ceiling"]
                 ts = TextureStage('ts')
                 np.setTexture(ts, texture)
                 np.setTexScale(ts, 2, 2)
+                
+                # Aplica material para melhorar iluminação
+                from panda3d.core import Material
+                material = Material()
+                material.setAmbient((0.8, 0.8, 0.8, 1))
+                material.setDiffuse((1.0, 1.0, 1.0, 1))
+                material.setSpecular((0.3, 0.3, 0.3, 1))
+                material.setShininess(20)
+                np.setMaterial(material)
         
         return entity
     
-
     def create_wall(self, parent: NodePath, position: Tuple[float, float, float], 
                 scale: Tuple[float, float, float]) -> Entity:
         """
@@ -196,22 +383,37 @@ class GameObjectFactory:
         Returns:
             A entidade da parede
         """
+        if "wall" not in self._prototypes:
+            print("ERRO: Protótipo de parede não registrado!")
+            return None
+            
         entity = self._prototypes["wall"].create(
             parent, Vec3(*position), Vec3(*scale))
         
-        # CORREÇÃO: Configurações extras para garantir que a parede seja opaca e sólida
-        if entity.node_path:
+        # Configurações extras para garantir que a parede seja visível
+        if entity and entity.node_path:
             np = entity.node_path
-            np.setTransparency(TransparencyAttrib.M_none)  # Desativa transparência
-            np.setColor(1, 1, 1, 1)  # Cor branca opaca
-            np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))  # Desativa culling
             
-            # Aplicação adicional da textura para garantir
+            # Limpa configurações que possam interferir
+            np.clearColor()
+            np.clearColorScale()
+            np.setTwoSided(True)  # Mostra ambos os lados
+            
+            # Aplicação explícita da textura para garantir visibilidade
             if "wall" in self._textures:
                 texture = self._textures["wall"]
                 ts = TextureStage('ts')
                 np.setTexture(ts, texture)
                 np.setTexScale(ts, 2, 2)
+                
+                # Aplica material para melhorar iluminação
+                from panda3d.core import Material
+                material = Material()
+                material.setAmbient((0.8, 0.8, 0.8, 1))
+                material.setDiffuse((1.0, 1.0, 1.0, 1))
+                material.setSpecular((0.3, 0.3, 0.3, 1))
+                material.setShininess(20)
+                np.setMaterial(material)
             
             # Adiciona uma caixa de colisão explícita adicional
             from panda3d.core import CollisionNode, CollisionBox, BitMask32, Point3
@@ -244,22 +446,37 @@ class GameObjectFactory:
         Returns:
             A entidade do piso
         """
+        if "floor" not in self._prototypes:
+            print("ERRO: Protótipo de piso não registrado!")
+            return None
+            
         entity = self._prototypes["floor"].create(
             parent, Vec3(*position), Vec3(*scale))
         
-        # CORREÇÃO: Configurações extras para garantir que o piso seja opaco e sólido
-        if entity.node_path:
+        # Configurações extras para garantir que o piso seja visível
+        if entity and entity.node_path:
             np = entity.node_path
-            np.setTransparency(TransparencyAttrib.M_none)  # Desativa transparência
-            np.setColor(1, 1, 1, 1)  # Cor branca opaca
-            np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))  # Desativa culling
             
-            # Aplicação adicional da textura para garantir
+            # Limpa configurações que possam interferir
+            np.clearColor()
+            np.clearColorScale()
+            np.setTwoSided(True)  # Mostra ambos os lados
+            
+            # Aplicação explícita da textura para garantir visibilidade
             if "floor" in self._textures:
                 texture = self._textures["floor"]
                 ts = TextureStage('ts')
                 np.setTexture(ts, texture)
                 np.setTexScale(ts, 2, 2)
+                
+                # Aplica material para melhorar iluminação
+                from panda3d.core import Material
+                material = Material()
+                material.setAmbient((0.8, 0.8, 0.8, 1))
+                material.setDiffuse((1.0, 1.0, 1.0, 1))
+                material.setSpecular((0.3, 0.3, 0.3, 1))
+                material.setShininess(20)
+                np.setMaterial(material)
             
             # Adiciona uma caixa de colisão explícita adicional
             from panda3d.core import CollisionNode, CollisionBox, BitMask32, Point3
@@ -294,24 +511,42 @@ class GameObjectFactory:
             A entidade da caixa
         """
         prototype_key = "movable_box" if movable else "box"
+        
+        if prototype_key not in self._prototypes:
+            print(f"ERRO: Protótipo de caixa '{prototype_key}' não registrado!")
+            return None
+            
         entity = self._prototypes[prototype_key].create(
             parent, Vec3(*position), Vec3(*scale))
         
-        # CORREÇÃO: Configurações extras para garantir que a caixa seja opaca e sólida
-        if entity.node_path:
+        # Configurações extras para garantir que a caixa seja visível
+        if entity and entity.node_path:
             np = entity.node_path
-            np.setTransparency(TransparencyAttrib.M_none)  # Desativa transparência
-            np.setColor(1, 1, 1, 1)  # Cor branca opaca
-            np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))  # Desativa culling
             
-            # Aplicação adicional da textura para garantir
+            # Limpa configurações que possam interferir
+            np.clearColor()
+            np.clearColorScale()
+            np.setTwoSided(True)  # Mostra ambos os lados
+            
+            # Aplicação explícita da textura para garantir visibilidade
             if "box" in self._textures:
                 texture = self._textures["box"]
                 ts = TextureStage('ts')
                 np.setTexture(ts, texture)
-                size_factor = scale[0]
-                repeat = 1.0 / size_factor if size_factor > 0 else 1.0
+                
+                # Escala de textura baseada no tamanho da caixa
+                size_factor = max(scale[0], 1.0)
+                repeat = 1.0 / size_factor
                 np.setTexScale(ts, repeat, repeat)
+                
+                # Aplica material para melhorar iluminação
+                from panda3d.core import Material
+                material = Material()
+                material.setAmbient((0.8, 0.8, 0.8, 1))
+                material.setDiffuse((1.0, 1.0, 1.0, 1))
+                material.setSpecular((0.3, 0.3, 0.3, 1))
+                material.setShininess(20)
+                np.setMaterial(material)
             
             # Para caixas não-móveis, adiciona uma caixa de colisão explícita adicional
             if not movable:
@@ -331,8 +566,6 @@ class GameObjectFactory:
                 coll_np.setPos(0, 0, 0)
         
         return entity
-
-
 
     def create_custom_static_object(self, parent: NodePath, 
                                   name: str,
@@ -370,17 +603,28 @@ class GameObjectFactory:
         
         entity = custom_object.create(parent, Vec3(*position), Vec3(*scale))
         
-        # CORREÇÃO: Configurações extras para garantir que o objeto seja opaco e sólido
-        if entity.node_path:
+        # Configurações extras para garantir que o objeto seja visível
+        if entity and entity.node_path:
             np = entity.node_path
-            np.setTransparency(TransparencyAttrib.M_none)  # Desativa transparência
-            np.setColor(1, 1, 1, 1)  # Cor branca opaca
-            np.setAttrib(CullFaceAttrib.make(CullFaceAttrib.MCullNone))  # Desativa culling
             
-            # Aplicação adicional da textura para garantir
+            # Limpa configurações que possam interferir
+            np.clearColor()
+            np.clearColorScale()
+            np.setTwoSided(True)  # Mostra ambos os lados
+            
+            # Aplicação explícita da textura para garantir visibilidade
             texture = self._textures[texture_name]
             ts = TextureStage('ts')
             np.setTexture(ts, texture)
             np.setTexScale(ts, 2, 2)
+            
+            # Aplica material para melhorar iluminação
+            from panda3d.core import Material
+            material = Material()
+            material.setAmbient((0.8, 0.8, 0.8, 1))
+            material.setDiffuse((1.0, 1.0, 1.0, 1))
+            material.setSpecular((0.3, 0.3, 0.3, 1))
+            material.setShininess(20)
+            np.setMaterial(material)
         
         return entity

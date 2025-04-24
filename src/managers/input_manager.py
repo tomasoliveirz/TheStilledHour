@@ -4,7 +4,7 @@ from panda3d.core import WindowProperties
 
 from src.utils.singleton import Singleton
 from src.utils.event_bus import EventBus
-from src.core.config import MOUSE_SENSITIVITY, KEY_FORWARD, KEY_BACKWARD, KEY_LEFT, KEY_RIGHT
+from src.core.config import MOUSE_SENSITIVITY, KEY_FORWARD, KEY_BACKWARD, KEY_LEFT, KEY_RIGHT, KEY_CROUCH, KEY_SPRINT
 
 class InputState:
     """Representa o estado atual de um dispositivo de entrada."""
@@ -42,6 +42,8 @@ class InputManager(metaclass=Singleton):
             KEY_BACKWARD: "move_backward",
             KEY_LEFT: "move_left",
             KEY_RIGHT: "move_right",
+            KEY_CROUCH: "toggle_crouch",  # Nova ação para agachamento
+            KEY_SPRINT: "toggle_sprint",   # Nova ação para sprint
         }
         
         # Callbacks para eventos de input
@@ -73,7 +75,7 @@ class InputManager(metaclass=Singleton):
         
         # Configuração inicial do mouse
         self.set_mouse_visible(False)
-    
+
     def update(self) -> None:
         """Atualiza o estado de input para este frame."""
         # Guarda o estado anterior

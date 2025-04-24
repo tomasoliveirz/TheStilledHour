@@ -7,7 +7,7 @@ Centraliza constantes, configurações e parâmetros do jogo.
 GAME_TITLE = "The Stilled Hour"
 VERSION = "0.1.0"
 FULLSCREEN = False
-WINDOW_SIZE = (1280, 720)
+WINDOW_SIZE = (1920, 1080)
 ENABLE_SHADOWS = True
 ENABLE_PBR = True
 ENABLE_PARTICLES = True
@@ -35,7 +35,7 @@ PLAYER_COLLISION_RADIUS = 0.3
 PLAYER_HEAD_HEIGHT = 1.7
 PLAYER_STEP_HEIGHT = 0.35
 PLAYER_STEP_SOUND_INTERVAL = 0.5
-PLAYER_CAMERA_FOV = 70.0
+PLAYER_CAMERA_FOV = 100.0
 PLAYER_MASS = 80.0
 
 # Configurações de física
@@ -45,7 +45,7 @@ MAX_SUBSTEPS = 10
 FIXED_TIMESTEP = 1.0 / PHYSICS_FRAME_RATE
 
 # Configurações de debug
-DEBUG_MODE = True
+DEBUG_MODE = False
 SHOW_COLLISION_SHAPES = False
 SHOW_FPS = True
 LOG_LEVEL = "INFO"
@@ -57,6 +57,6 @@ SOUNDS_DIR = "assets/sounds"
 FONTS_DIR = "assets/fonts"
 
 # Scene config
-ROOM_SIZE = (20, 10, 4)  # width, length, height
-NUMBER_OF_BOXES = 10
+ROOM_SIZE = (100, 100, 30)  # width, length, height
+NUMBER_OF_BOXES = 100
 WALL_THICKNESS = 1
